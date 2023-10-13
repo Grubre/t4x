@@ -6,14 +6,15 @@ use std::{
 };
 
 use crossterm::{
-    cursor::{self, MoveTo},
-    event::{poll, read, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    cursor::{self},
+    event::{
+        poll, read, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers,
+    },
     execute, queue,
     style::{self, Color, SetForegroundColor},
     terminal::{
         self, disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
     },
-    QueueableCommand,
 };
 use rand::Rng;
 
@@ -36,11 +37,24 @@ fn cleanup_terminal() -> io::Result<()> {
 }
 
 fn poll_events(state: &mut State) -> io::Result<()> {
-    if !poll(Duration::from_millis(100))? {
+    if !poll(Duration::from_millis(1))? {
         return Ok(());
     }
 
     let event = read()?;
+
+    let movement_mult = if let Event::Key(KeyEvent {
+        code: _, modifiers, ..
+    }) = event
+    {
+        if modifiers == (KeyModifiers::ALT) {
+            5
+        } else {
+            1
+        }
+    } else {
+        1
+    };
 
     if let Event::Key(key) = event {
         match key.code {
@@ -49,24 +63,18 @@ fn poll_events(state: &mut State) -> io::Result<()> {
                 exit(0);
             }
             KeyCode::Left => {
-                state.pointer_pos.0 = max(state.pointer_pos.0 - 1, 0);
+                state.pointer_pos.0 = max(state.pointer_pos.0 - movement_mult, 0);
             }
             KeyCode::Right => {
-                state.pointer_pos.0 += 1;
+                state.pointer_pos.0 += movement_mult;
             }
             KeyCode::Up => {
-                state.pointer_pos.1 = max(state.pointer_pos.1 - 1, 0);
+                state.pointer_pos.1 = max(state.pointer_pos.1 - movement_mult, 0);
             }
             KeyCode::Down => {
-                state.pointer_pos.1 += 1;
+                state.pointer_pos.1 += movement_mult;
             }
-            KeyCode::Enter => {
-                for tile in &mut state.tiles {
-                    if tile.color != Color::Black {
-                        tile.color = Color::DarkYellow;
-                    }
-                }
-            }
+            KeyCode::Enter => {}
             _ => {}
         }
     }
@@ -83,17 +91,17 @@ fn random_color() -> Color {
     Color::Rgb { r, g, b }
 }
 
-struct Tile {
-    color: Color,
+enum Tile {
+    Plains { color: Color },
 }
 
 fn generate_map(width: u16, height: u16) -> Vec<Tile> {
     let mut vec = Vec::new();
     for _y in 0..height {
         for _x in 0..width {
-            vec.push(Tile {
+            vec.push(Tile::Plains {
                 color: random_color(),
-            })
+            });
         }
     }
     vec
@@ -121,7 +129,9 @@ fn draw(state: &State, width: u16, height: u16) -> io::Result<()> {
             let ty: u64 = u64::from(y) + rect.1;
             let tile = state.tiles.get((ty * u64::from(width) + tx) as usize);
             let color = if let Some(tile) = tile {
-                tile.color
+                match tile {
+                    Tile::Plains { color } => *color,
+                }
             } else {
                 Color::Black
             };
@@ -147,7 +157,7 @@ fn main() -> io::Result<()> {
     setup_terminal()?;
 
     let (width, height) = terminal::size().unwrap();
-    let map = generate_map(width, height);
+    let map = generate_map(width * 5, height * 5);
 
     let mut state = State {
         pointer_pos: ((width / 2).into(), (height / 2).into()),
