@@ -1,19 +1,19 @@
 use std::{
     cmp::max,
-    io::{self},
+    io::{self, Write},
     process::exit,
     time::Duration,
 };
 
 use crossterm::{
-    cursor::MoveTo,
+    cursor::{self, MoveTo},
     event::{poll, read, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
-    execute,
-    style::{Color, SetForegroundColor},
+    execute, queue,
+    style::{self, Color, SetForegroundColor},
     terminal::{
         self, disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
     },
-    ExecutableCommand,
+    QueueableCommand,
 };
 use rand::Rng;
 
@@ -111,13 +111,12 @@ fn get_visible_screen_rect_left_top(state: &State, width: u16, height: u16) -> (
     (left_top_x, left_top_y)
 }
 
-fn draw(state: &State, width: u16, height: u16) {
+fn draw(state: &State, width: u16, height: u16) -> io::Result<()> {
     let solid_rectangle_char = '\u{2588}';
     let mut stdout = io::stdout();
     let rect = get_visible_screen_rect_left_top(state, width, height);
     for y in 0..height {
         for x in 0..width {
-            stdout.execute(MoveTo(x, y)).unwrap();
             let tx: u64 = u64::from(x) + rect.0;
             let ty: u64 = u64::from(y) + rect.1;
             let tile = state.tiles.get((ty * u64::from(width) + tx) as usize);
@@ -126,10 +125,17 @@ fn draw(state: &State, width: u16, height: u16) {
             } else {
                 Color::Black
             };
-            stdout.execute(SetForegroundColor(color)).unwrap();
-            print!("{}", solid_rectangle_char);
+            queue!(
+                stdout,
+                cursor::MoveTo(x, y),
+                SetForegroundColor(color),
+                style::Print(solid_rectangle_char)
+            )?
         }
     }
+    stdout.flush()?;
+
+    Ok(())
 }
 
 struct State {
@@ -152,6 +158,6 @@ fn main() -> io::Result<()> {
         if let Err(e) = poll_events(&mut state) {
             println!("Error: {:?}\r", e);
         }
-        draw(&state, width, height);
+        draw(&state, width, height)?;
     }
 }
