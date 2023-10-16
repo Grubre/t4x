@@ -100,13 +100,13 @@ fn random_color() -> Color {
     Color::Rgb { r, g, b }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Tile {
     Plains { color: Color },
 }
 
 fn generate_map(width: u16, height: u16) -> Vec<Vec<Tile>> {
-    let mut vec: Vec<_> = from_fn(|| Some(Vec::new())).take(width as usize).collect();
+    let mut vec: Vec<_> = vec![vec![]; width as usize];
     for x in 0..width {
         for y in 0..height {
             vec[x as usize].push(Tile::Plains {
