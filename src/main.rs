@@ -1,6 +1,7 @@
 use std::{
     cmp::max,
     io::{self, Write},
+    iter::from_fn,
     process::exit,
     time::Duration,
 };
@@ -20,7 +21,12 @@ use rand::Rng;
 
 fn setup_terminal() -> io::Result<()> {
     let mut stdout = io::stdout();
-    execute!(io::stdout(), EnterAlternateScreen)?;
+    execute!(
+        io::stdout(),
+        EnterAlternateScreen,
+        cursor::Hide,
+        cursor::DisableBlinking
+    )?;
     enable_raw_mode()?;
 
     execute!(stdout, EnableMouseCapture)?;
@@ -32,26 +38,29 @@ fn cleanup_terminal() -> io::Result<()> {
     execute!(stdout, DisableMouseCapture)?;
 
     disable_raw_mode()?;
-    execute!(stdout, LeaveAlternateScreen)?;
+    execute!(
+        stdout,
+        LeaveAlternateScreen,
+        cursor::Show,
+        cursor::EnableBlinking
+    )?;
     Ok(())
 }
 
 fn poll_events(state: &mut State) -> io::Result<()> {
-    if !poll(Duration::from_millis(1))? {
+    if !poll(Duration::from_millis(100))? {
         return Ok(());
     }
 
     let event = read()?;
 
     let movement_mult = if let Event::Key(KeyEvent {
-        code: _, modifiers, ..
+        code: _,
+        modifiers: KeyModifiers::ALT,
+        ..
     }) = event
     {
-        if modifiers == (KeyModifiers::ALT) {
-            5
-        } else {
-            1
-        }
+        5
     } else {
         1
     };
@@ -63,16 +72,16 @@ fn poll_events(state: &mut State) -> io::Result<()> {
                 exit(0);
             }
             KeyCode::Left => {
-                state.pointer_pos.0 = max(state.pointer_pos.0 - movement_mult, 0);
+                state.pointer_pos.0 = state.pointer_pos.0.saturating_sub(movement_mult);
             }
             KeyCode::Right => {
-                state.pointer_pos.0 += movement_mult;
+                state.pointer_pos.0 = state.pointer_pos.0.saturating_add(movement_mult);
             }
             KeyCode::Up => {
-                state.pointer_pos.1 = max(state.pointer_pos.1 - movement_mult, 0);
+                state.pointer_pos.1 = state.pointer_pos.1.saturating_sub(movement_mult);
             }
             KeyCode::Down => {
-                state.pointer_pos.1 += movement_mult;
+                state.pointer_pos.1 = state.pointer_pos.1.saturating_add(movement_mult);
             }
             KeyCode::Enter => {}
             _ => {}
@@ -91,16 +100,21 @@ fn random_color() -> Color {
     Color::Rgb { r, g, b }
 }
 
+#[derive(Debug)]
 enum Tile {
     Plains { color: Color },
 }
 
-fn generate_map(width: u16, height: u16) -> Vec<Tile> {
-    let mut vec = Vec::new();
-    for _y in 0..height {
-        for _x in 0..width {
-            vec.push(Tile::Plains {
-                color: random_color(),
+fn generate_map(width: u16, height: u16) -> Vec<Vec<Tile>> {
+    let mut vec: Vec<_> = from_fn(|| Some(Vec::new())).take(width as usize).collect();
+    for x in 0..width {
+        for y in 0..height {
+            vec[x as usize].push(Tile::Plains {
+                color: Color::Rgb {
+                    r: (y as u32 * 256 / height as u32) as u8,
+                    g: (x as u32 * 256 / width as u32) as u8,
+                    b: rand::thread_rng().gen_range(0..=255),
+                },
             });
         }
     }
@@ -113,8 +127,8 @@ fn get_visible_screen_rect_left_top(state: &State, width: u16, height: u16) -> (
     let half_screen_w: u64 = (width / 2).into();
     let half_screen_h: u64 = (height / 2).into();
 
-    let left_top_x = pointer_pos.0 - half_screen_w;
-    let left_top_y = pointer_pos.1 - half_screen_h;
+    let left_top_x = pointer_pos.0.saturating_sub(half_screen_w);
+    let left_top_y = pointer_pos.1.saturating_sub(half_screen_h);
 
     (left_top_x, left_top_y)
 }
@@ -127,7 +141,19 @@ fn draw(state: &State, width: u16, height: u16) -> io::Result<()> {
         for x in 0..width {
             let tx: u64 = u64::from(x) + rect.0;
             let ty: u64 = u64::from(y) + rect.1;
-            let tile = state.tiles.get((ty * u64::from(width) + tx) as usize);
+            if (tx, ty) == state.pointer_pos {
+                queue!(
+                    stdout,
+                    cursor::MoveTo(x, y),
+                    SetForegroundColor(Color::White),
+                    style::Print(solid_rectangle_char)
+                )?;
+                continue;
+            }
+            let tile = state
+                .tiles
+                .get(tx as usize)
+                .and_then(|row| row.get(ty as usize));
             let color = if let Some(tile) = tile {
                 match tile {
                     Tile::Plains { color } => *color,
@@ -150,15 +176,14 @@ fn draw(state: &State, width: u16, height: u16) -> io::Result<()> {
 
 struct State {
     pointer_pos: (u64, u64),
-    tiles: Vec<Tile>,
+    tiles: Vec<Vec<Tile>>,
 }
 
 fn main() -> io::Result<()> {
     setup_terminal()?;
 
     let (width, height) = terminal::size().unwrap();
-    let map = generate_map(width * 5, height * 5);
-
+    let map = generate_map(width * 2, height * 2);
     let mut state = State {
         pointer_pos: ((width / 2).into(), (height / 2).into()),
         tiles: map,
