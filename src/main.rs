@@ -19,6 +19,10 @@ use crossterm::{
 };
 use rand::Rng;
 
+static PLAINS_COLOR: Color = Color::Green;
+static DESERT_COLOR: Color = Color::Yellow;
+static SOLID_RECTANGLE_CHAR: char = '\u{2588}';
+
 fn setup_terminal() -> io::Result<()> {
     let mut stdout = io::stdout();
     execute!(
@@ -101,27 +105,35 @@ fn random_color() -> Color {
 }
 
 #[derive(Debug, Clone)]
-enum Tile {
-    Plains { color: Color },
+enum TileType {
+    Plains,
+    Desert,
+}
+
+#[derive(Clone)]
+struct Unit {}
+
+#[derive(Clone)]
+struct Building {}
+
+#[derive(Clone)]
+struct Tile {
+    tile_type: TileType,
+    unit: Option<Unit>,
+    building: Option<Building>,
 }
 
 fn generate_map(width: u16, height: u16) -> Vec<Vec<Tile>> {
     let mut vec: Vec<_> = vec![vec![]; width as usize];
     for x in 0..width {
         for y in 0..height {
-            vec[x as usize].push(Tile::Plains {
-                color: Color::Rgb {
-                    r: (y as u32 * 256 / height as u32) as u8,
-                    g: (x as u32 * 256 / width as u32) as u8,
-                    b: rand::thread_rng().gen_range(0..=255),
-                },
-            });
+            vec[x as usize].push(Tile{ tile_type: TileType::Plains, unit: None, building: None });
         }
     }
     vec
 }
 
-fn get_visible_screen_rect_left_top(state: &State, width: u16, height: u16) -> (u64, u64) {
+fn get_visible_world_rect_left_top(state: &State, width: u16, height: u16) -> (u64, u64) {
     let pointer_pos = &state.pointer_pos;
 
     let half_screen_w: u64 = (width / 2).into();
@@ -133,10 +145,14 @@ fn get_visible_screen_rect_left_top(state: &State, width: u16, height: u16) -> (
     (left_top_x, left_top_y)
 }
 
-fn draw(state: &State, width: u16, height: u16) -> io::Result<()> {
-    let solid_rectangle_char = '\u{2588}';
+fn draw_map(
+    state: &State,
+    screen_left_top_offset: (u16, u16),
+    width: u16,
+    height: u16,
+) -> io::Result<()> {
     let mut stdout = io::stdout();
-    let rect = get_visible_screen_rect_left_top(state, width, height);
+    let rect = get_visible_world_rect_left_top(state, width, height);
     for y in 0..height {
         for x in 0..width {
             let tx: u64 = u64::from(x) + rect.0;
@@ -144,9 +160,9 @@ fn draw(state: &State, width: u16, height: u16) -> io::Result<()> {
             if (tx, ty) == state.pointer_pos {
                 queue!(
                     stdout,
-                    cursor::MoveTo(x, y),
+                    cursor::MoveTo(x + screen_left_top_offset.0, y + screen_left_top_offset.1),
                     SetForegroundColor(Color::White),
-                    style::Print(solid_rectangle_char)
+                    style::Print(SOLID_RECTANGLE_CHAR)
                 )?;
                 continue;
             }
@@ -155,21 +171,45 @@ fn draw(state: &State, width: u16, height: u16) -> io::Result<()> {
                 .get(tx as usize)
                 .and_then(|row| row.get(ty as usize));
             let color = if let Some(tile) = tile {
-                match tile {
-                    Tile::Plains { color } => *color,
+                match tile.tile_type {
+                    TileType::Plains => PLAINS_COLOR,
+                    TileType::Desert => DESERT_COLOR,
                 }
             } else {
                 Color::Black
             };
             queue!(
                 stdout,
-                cursor::MoveTo(x, y),
+                cursor::MoveTo(x + screen_left_top_offset.0, y + screen_left_top_offset.1),
                 SetForegroundColor(color),
-                style::Print(solid_rectangle_char)
+                style::Print(SOLID_RECTANGLE_CHAR)
             )?
         }
     }
     stdout.flush()?;
+
+    Ok(())
+}
+
+fn draw_ui(
+    state: &State,
+    screen_left_top_offset: (u16, u16),
+    width: u16,
+    height: u16,
+) -> io::Result<()> {
+    let mut stdout = io::stdout();
+
+    // FIXME: the display is not being cleaned so there is leftover stuff from previous frames.
+    // for example when we go from higher x,y values to lower
+    queue!(
+        stdout,
+        cursor::MoveTo(screen_left_top_offset.0, screen_left_top_offset.1),
+        SetForegroundColor(Color::White),
+        style::Print(format!(
+            "x: {}, y: {}",
+            state.pointer_pos.0, state.pointer_pos.1
+        ))
+    )?;
 
     Ok(())
 }
@@ -183,16 +223,21 @@ fn main() -> io::Result<()> {
     setup_terminal()?;
 
     let (width, height) = terminal::size().unwrap();
+
     let map = generate_map(width * 2, height * 2);
+
     let mut state = State {
         pointer_pos: ((width / 2).into(), (height / 2).into()),
         tiles: map,
     };
 
+    let ui_width = width / 5;
+
     loop {
         if let Err(e) = poll_events(&mut state) {
             println!("Error: {:?}\r", e);
         }
-        draw(&state, width, height)?;
+        draw_map(&state, (0, 0), width - ui_width, height)?;
+        draw_ui(&state, (width - ui_width, 0), ui_width, height)?;
     }
 }
