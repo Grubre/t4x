@@ -4,18 +4,19 @@ use std::{
     time::Duration,
 };
 
+use crossterm::style::Color;
 use crossterm::{
     cursor::{self},
     event::{
         poll, read, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers,
     },
-    execute, terminal::{
+    execute,
+    terminal::{
         self, disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
     },
 };
-use crossterm::style::Color;
 use rand::Rng;
-use t4x::{map::*, State, display::*};
+use t4x::{display::*, map::*, State};
 
 fn setup_terminal() -> io::Result<()> {
     let mut stdout = io::stdout();
@@ -81,7 +82,10 @@ fn poll_events(state: &mut State) -> io::Result<()> {
             KeyCode::Down => {
                 state.pointer_pos.1 = state.pointer_pos.1.saturating_add(movement_mult);
             }
-            KeyCode::Enter => {}
+            KeyCode::Char('p') => {
+                state.tiles[state.pointer_pos.0 as usize][state.pointer_pos.1 as usize].unit =
+                    Some(Unit {})
+            }
             _ => {}
         }
     }

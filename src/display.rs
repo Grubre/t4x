@@ -1,6 +1,9 @@
 use std::io::{self, Write};
 
-use crossterm::{queue, cursor, style::{SetForegroundColor, Color, self}};
+use crossterm::{
+    cursor, queue,
+    style::{self, Color, SetBackgroundColor, SetForegroundColor},
+};
 
 use crate::{map::TileType, State};
 
@@ -45,19 +48,22 @@ pub fn draw_map(
                 .tiles
                 .get(tx as usize)
                 .and_then(|row| row.get(ty as usize));
-            let color = if let Some(tile) = tile {
-                match tile.tile_type {
+            let (color, character) = if let Some(tile) = tile {
+                let color = match tile.tile_type {
                     TileType::Plains => PLAINS_COLOR,
                     TileType::Desert => DESERT_COLOR,
-                }
+                };
+                let character = if tile.unit.is_some() { '@' } else { ' ' };
+                (color, character)
             } else {
-                Color::Black
+                (Color::Black, ' ')
             };
             queue!(
                 stdout,
                 cursor::MoveTo(x + screen_left_top_offset.0, y + screen_left_top_offset.1),
-                SetForegroundColor(color),
-                style::Print(SOLID_RECTANGLE_CHAR)
+                SetForegroundColor(Color::Black),
+                SetBackgroundColor(color),
+                style::Print(character)
             )?
         }
     }
@@ -80,6 +86,7 @@ pub fn draw_ui(
         stdout,
         cursor::MoveTo(screen_left_top_offset.0, screen_left_top_offset.1),
         SetForegroundColor(Color::White),
+        SetBackgroundColor(Color::Black),
         style::Print(format!(
             "x: {}, y: {}",
             state.pointer_pos.0, state.pointer_pos.1
@@ -88,4 +95,3 @@ pub fn draw_ui(
 
     Ok(())
 }
-

@@ -21,9 +21,12 @@ pub fn generate_map(width: u16, height: u16) -> Vec<Vec<Tile>> {
     let mut vec: Vec<_> = vec![vec![]; width as usize];
     for x in 0..width {
         for y in 0..height {
-            vec[x as usize].push(Tile{ tile_type: TileType::Plains, unit: None, building: None });
+            vec[x as usize].push(Tile {
+                tile_type: TileType::Plains,
+                unit: None,
+                building: None,
+            });
         }
     }
     vec
 }
-
