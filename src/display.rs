@@ -6,11 +6,12 @@ use crossterm::{
 };
 
 use crate::{
-    map::{Tile, TileType, Unit},
+    map::{Tile, TileType},
     State,
 };
 
 static PLAINS_COLOR: Color = Color::Green;
+static HILLS_COLOR: Color = Color::DarkGreen;
 static DESERT_COLOR: Color = Color::Yellow;
 static SOLID_RECTANGLE_CHAR: char = '\u{2588}';
 
@@ -27,10 +28,13 @@ fn get_visible_world_rect_left_top(state: &State, width: u16, height: u16) -> (u
 }
 
 pub fn get_character(tile: &Tile) -> char {
-    if tile.unit.is_some() {
-        '@'
-    } else {
-        ' '
+    let unit = &tile.unit;
+    let Some(unit) = unit else {
+        return ' ';
+    };
+    match unit.unit_type {
+        crate::map::UnitType::Civilian => 'c',
+        crate::map::UnitType::Builder => 'b',
     }
 }
 
@@ -38,6 +42,7 @@ pub fn get_color(tile: &Tile) -> Color {
     match tile.tile_type {
         TileType::Plains => PLAINS_COLOR,
         TileType::Desert => DESERT_COLOR,
+        TileType::Hills => HILLS_COLOR,
     }
 }
 

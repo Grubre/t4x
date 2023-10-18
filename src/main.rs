@@ -88,7 +88,10 @@ fn poll_events(state: &mut State) -> io::Result<()> {
                     .get_mut(state.pointer_pos.0 as usize)
                     .and_then(|row| row.get_mut(state.pointer_pos.1 as usize));
                 if let Some(tile) = tile {
-                    tile.unit = Some(Unit {});
+                    tile.unit = Some(Unit {
+                        position: state.pointer_pos,
+                        unit_type: UnitType::Builder,
+                    });
                 }
             }
             _ => {}
