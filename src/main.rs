@@ -83,8 +83,13 @@ fn poll_events(state: &mut State) -> io::Result<()> {
                 state.pointer_pos.1 = state.pointer_pos.1.saturating_add(movement_mult);
             }
             KeyCode::Char(' ') => {
-                state.tiles[state.pointer_pos.0 as usize][state.pointer_pos.1 as usize].unit =
-                    Some(Unit {})
+                let tile = state
+                    .tiles
+                    .get_mut(state.pointer_pos.0 as usize)
+                    .and_then(|row| row.get_mut(state.pointer_pos.1 as usize));
+                if let Some(tile) = tile {
+                    tile.unit = Some(Unit {});
+                }
             }
             _ => {}
         }

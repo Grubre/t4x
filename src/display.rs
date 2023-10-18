@@ -95,12 +95,14 @@ pub fn draw_ui(
 ) -> io::Result<()> {
     let mut stdout = io::stdout();
 
+    let blank_row = " ".repeat(width as usize);
+
     // clear the row
     queue!(
         stdout,
         SetBackgroundColor(Color::Black),
         cursor::MoveTo(screen_left_top_offset.0, screen_left_top_offset.1),
-        style::Print(" ".repeat(width as usize))
+        style::Print(&blank_row)
     )?;
 
     queue!(
