@@ -82,7 +82,7 @@ fn poll_events(state: &mut State) -> io::Result<()> {
             KeyCode::Down => {
                 state.pointer_pos.1 = state.pointer_pos.1.saturating_add(movement_mult);
             }
-            KeyCode::Char('p') => {
+            KeyCode::Char(' ') => {
                 state.tiles[state.pointer_pos.0 as usize][state.pointer_pos.1 as usize].unit =
                     Some(Unit {})
             }

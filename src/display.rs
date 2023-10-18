@@ -5,7 +5,10 @@ use crossterm::{
     style::{self, Color, SetBackgroundColor, SetForegroundColor},
 };
 
-use crate::{map::TileType, State};
+use crate::{
+    map::{Tile, TileType, Unit},
+    State,
+};
 
 static PLAINS_COLOR: Color = Color::Green;
 static DESERT_COLOR: Color = Color::Yellow;
@@ -21,6 +24,21 @@ fn get_visible_world_rect_left_top(state: &State, width: u16, height: u16) -> (u
     let left_top_y = pointer_pos.1.saturating_sub(half_screen_h);
 
     (left_top_x, left_top_y)
+}
+
+pub fn get_character(tile: &Tile) -> char {
+    if tile.unit.is_some() {
+        '@'
+    } else {
+        ' '
+    }
+}
+
+pub fn get_color(tile: &Tile) -> Color {
+    match tile.tile_type {
+        TileType::Plains => PLAINS_COLOR,
+        TileType::Desert => DESERT_COLOR,
+    }
 }
 
 pub fn draw_map(
@@ -49,11 +67,8 @@ pub fn draw_map(
                 .get(tx as usize)
                 .and_then(|row| row.get(ty as usize));
             let (color, character) = if let Some(tile) = tile {
-                let color = match tile.tile_type {
-                    TileType::Plains => PLAINS_COLOR,
-                    TileType::Desert => DESERT_COLOR,
-                };
-                let character = if tile.unit.is_some() { '@' } else { ' ' };
+                let color = get_color(tile);
+                let character = get_character(tile);
                 (color, character)
             } else {
                 (Color::Black, ' ')
@@ -80,13 +95,18 @@ pub fn draw_ui(
 ) -> io::Result<()> {
     let mut stdout = io::stdout();
 
-    // FIXME: the display is not being cleaned so there is leftover stuff from previous frames.
-    // for example when we go from higher x,y values to lower
+    // clear the row
+    queue!(
+        stdout,
+        SetBackgroundColor(Color::Black),
+        cursor::MoveTo(screen_left_top_offset.0, screen_left_top_offset.1),
+        style::Print(" ".repeat(width as usize))
+    )?;
+
     queue!(
         stdout,
         cursor::MoveTo(screen_left_top_offset.0, screen_left_top_offset.1),
         SetForegroundColor(Color::White),
-        SetBackgroundColor(Color::Black),
         style::Print(format!(
             "x: {}, y: {}",
             state.pointer_pos.0, state.pointer_pos.1
